@@ -97,11 +97,6 @@ fn main() -> Result<()> {
 
         let one_s31_32 = 1u64 << 32;
 
-        let matrix = [one_s31_32, 0, 0, 0, one_s31_32, 0, 0, 0, one_s31_32];
-        let matrix = card
-            .create_property_blob(&matrix)
-            .context("Create property blob")?;
-
         let (w, h) = mode.size();
 
         let mut db = card
@@ -144,15 +139,33 @@ fn main() -> Result<()> {
             .add_framebuffer(&db2, 32, 32)
             .context("Add framebuffer")?;
 
-        card.set_property(crtc, ctm, matrix.into())
-            .context("Set CTM property")?;
-
         // Note that we're never setting fb2, but we're flipping to it :)
         card.set_crtc(crtc, Some(fb), (0, 0), &[con], Some(mode))
             .context("Set CRTC")?;
 
         for i in 0..100 {
             let start = Instant::now();
+
+            let matrix = [
+                one_s31_32,
+                i as u64 * one_s31_32 / 100,
+                0,
+                0,
+                one_s31_32,
+                (100 - i) as u64 * one_s31_32 / 100,
+                0,
+                0,
+                one_s31_32,
+            ];
+            let matrix = card
+                .create_property_blob(&matrix)
+                .context("Create property blob")?;
+
+            card.set_property(crtc, ctm, matrix.into())
+                .context("Set CTM property")?;
+
+            card.destroy_property_blob(matrix.into())
+                .context("Destroy property blob")?;
 
             card.page_flip(
                 crtc,
@@ -184,9 +197,6 @@ fn main() -> Result<()> {
 
             println!("Flip took {:?}", start.elapsed());
         }
-
-        card.destroy_property_blob(matrix.into())
-            .context("Destroy property blob")?;
 
         card.destroy_framebuffer(fb2)
             .context("Destroy framebuffer")?;
